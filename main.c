@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdlib.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,6 +35,8 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MINEFIELD_SIZE 30
+#define SQUARE_SIZE 240/MINEFIELD_SIZE
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,7 +48,7 @@ typedef struct {
 
 /* USER CODE BEGIN PV */
 // 0: area clear, 1: mine
-uint8_t mine_field[10][10] = {{0}};
+uint8_t mine_field[MINEFIELD_SIZE][MINEFIELD_SIZE] = {{0}};
 Coordinates minesweeper_position;
 /* USER CODE END PV */
 
@@ -60,7 +63,7 @@ void Move_Down(void);
 void Move_Left(void);
 void Move_Right(void);
 void Uncover_Field(void);
-void my_FillRect(uint16_t Xpos, uint16_t Ypos, uint16_t Width, uint16_t Height);
+void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -226,114 +229,81 @@ void GameSetup(void)
 {
 	BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
 
-	// Set minesweeper's position
-
-	uint16_t backup_color = 0;
-	minesweeper_position.x = 0;
-	minesweeper_position.y = 0;
-
 	// To ważne: < zamiast <= w pierwszej pętli
-	for (uint16_t i = 0; i<240; i+=24)
+	for (uint16_t i = 0; i<240; i+=SQUARE_SIZE)
 	{
 		BSP_LCD_DrawHLine(0, i, 240);
 	}
 
-	for (uint16_t i = 0; i<=240; i+=24)
+	for (uint16_t i = 0; i<=240; i+=SQUARE_SIZE)
 	{
 		BSP_LCD_DrawVLine(i, 0, 240);
 	}
 
+	// Set minesweeper's position
+
+	minesweeper_position.x = 0;
+	minesweeper_position.y = 0;
+
 	// Mark minesweeper's position on the field
 
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
-
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
 }
 
 void Move_Up(void)
 {
 	// Create the square
-	uint16_t backup_color = 0;
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
 
 	// Change minesweeper's position
 	if (minesweeper_position.y != 0)
 		minesweeper_position.y--;
 	else
-		minesweeper_position.y = 9;
+		minesweeper_position.y = MINEFIELD_SIZE-1;
 	// Mark minesweeper's new position
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
 }
 
 void Move_Down(void)
 {
 	// Create the square
-	uint16_t backup_color = 0;
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
 
 	// Change minesweeper's position
-	if (minesweeper_position.y != 9)
+	if (minesweeper_position.y != MINEFIELD_SIZE-1)
 		minesweeper_position.y++;
 	else
 		minesweeper_position.y = 0;
 	// Mark minesweeper's new position
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
 }
 
 void Move_Left(void)
 {
 	// Create the square
-	uint16_t backup_color = 0;
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
 
 	// Change minesweeper's position
 	if (minesweeper_position.x != 0)
 		minesweeper_position.x--;
 	else
-		minesweeper_position.x = 9;
+		minesweeper_position.x = MINEFIELD_SIZE-1;
 	// Mark minesweeper's new position
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
 }
 
 void Move_Right(void)
 {
 	// Create the square
-	uint16_t backup_color = 0;
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_LIGHTGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
 
 	// Change minesweeper's position
-	if (minesweeper_position.x != 9)
+	if (minesweeper_position.x != MINEFIELD_SIZE-1)
 		minesweeper_position.x++;
 	else
 		minesweeper_position.x = 0;
 	// Mark minesweeper's new position
-	backup_color = BSP_LCD_GetTextColor();
-	BSP_LCD_SetTextColor(LCD_COLOR_DARKGRAY);
-	my_FillRect(minesweeper_position.x*24+1, minesweeper_position.y*24+1, 23, 23);
-	BSP_LCD_SetTextColor(backup_color);
+	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
 }
 
 void Uncover_Field(void)
@@ -341,12 +311,16 @@ void Uncover_Field(void)
 
 }
 
-void my_FillRect(uint16_t Xpos, uint16_t Ypos, uint16_t Width, uint16_t Height)
+void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color)
 {
-  while(Height--)
-  {
-    BSP_LCD_DrawHLine(Xpos, Ypos++, Width);
-  }
+	uint16_t Width = Height;
+	uint16_t backup_color = BSP_LCD_GetTextColor();
+	BSP_LCD_SetTextColor(color);
+	while(Height--)
+	{
+		BSP_LCD_DrawHLine(Xpos, Ypos++, Width);
+	}
+	BSP_LCD_SetTextColor(backup_color);
 }
 /**
   * @brief Toggle Leds
