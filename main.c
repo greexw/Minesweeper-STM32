@@ -35,7 +35,7 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MINEFIELD_SIZE 30
+#define MINEFIELD_SIZE 10
 #define SQUARE_SIZE 240/MINEFIELD_SIZE
 /* USER CODE END PD */
 
@@ -63,6 +63,9 @@ void Move_Down(void);
 void Move_Left(void);
 void Move_Right(void);
 void Uncover_Field(void);
+int8_t ADC1_Init(void);
+uint32_t Get_Seed_Value(void);
+void Draw_Mine_Positions(void);
 void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color);
 /* USER CODE END PFP */
 
@@ -78,6 +81,7 @@ void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color);
 
 int main(void)
 {
+  uint32_t seed = 0;
   /* USER CODE BEGIN 1 */
   JOYState_TypeDef JoyState = JOY_NONE;
   /* USER CODE END 1 */
@@ -115,6 +119,8 @@ int main(void)
 	  Error_Handler();
   }
 
+  BSP_LCD_SetFont(&Font12);
+  BSP_LCD_Clear(LCD_COLOR_WHITE);
   if (BSP_JOY_Init(JOY_MODE_GPIO) != IO_OK)
   {
     BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
@@ -123,6 +129,17 @@ int main(void)
     BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Joystick cannot be initialized", CENTER_MODE);
     Error_Handler();
   }
+
+  if (ADC1_Init() != HAL_OK)
+  {
+    BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+    BSP_LCD_SetTextColor(LCD_COLOR_RED);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)"ERROR", CENTER_MODE);
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"ADC-1 cannot be initialized", CENTER_MODE);
+    Error_Handler();
+  }
+  seed = Get_Seed_Value();
+  srand(seed);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -225,6 +242,53 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+int8_t ADC1_Init(void)
+{
+  uint8_t ret = HAL_OK;
+  ADC_HandleTypeDef hadc1 = {0};
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /** Common configuration */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  ret = HAL_ADC_Init(&hadc1);
+  if (ret != HAL_OK)
+  {
+    return ret;
+  }
+
+  /** Configure regular channel group */
+  sConfig.Channel = ADC_CHANNEL_7;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
+  ret = HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+
+  return ret;
+}
+
+uint32_t Get_Seed_Value(void)
+{
+	uint32_t ret = 0;
+
+	ADC1->CR2 |= 0x00000001;
+	// Wait for the ADC to stabilize:
+	HAL_Delay(500);
+	// Start conversion:
+	ADC1->CR2 |= 0x00000001;
+	// Wait for end of the conversion:
+	while ((ADC1->SR & 0x00000002) == 0);
+	ret = (uint32_t)ADC1->DR;
+	// Clear the STRT bit:
+	ADC1->SR &=~0x00000010;
+
+	return ret;
+}
+
 void GameSetup(void)
 {
 	BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
@@ -248,6 +312,9 @@ void GameSetup(void)
 	// Mark minesweeper's position on the field
 
 	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+
+	// Draw mine positions
+	Draw_Mine_Positions();
 }
 
 void Move_Up(void)
@@ -322,6 +389,23 @@ void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color)
 	}
 	BSP_LCD_SetTextColor(backup_color);
 }
+
+void Draw_Mine_Positions(void)
+{
+	uint8_t i = 0;
+	while(i<10)
+	{
+		uint8_t x = (rand() % (MINEFIELD_SIZE + 1 - 0) + 0);
+		uint8_t y = (rand() % (MINEFIELD_SIZE + 1 - 0) + 0);
+		if (mine_field[x][y] == 0)
+		{
+			mine_field[x][y] = 1;
+			Draw_Square(x*SQUARE_SIZE+1, y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_RED);
+			i++;
+		}
+	}
+}
+
 /**
   * @brief Toggle Leds
   * @param  None
