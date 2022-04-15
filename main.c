@@ -293,7 +293,7 @@ void GameSetup(void)
 {
 	BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
 
-	// To ważne: < zamiast <= w pierwszej pętli
+	// VERY important: < instead <= in first loop
 	for (uint16_t i = 0; i<240; i+=SQUARE_SIZE)
 	{
 		BSP_LCD_DrawHLine(0, i, 240);
