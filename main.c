@@ -22,11 +22,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdlib.h"
+#include "stdlib.h" // to import srand function
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+// coordinates on the game board
 typedef struct {
 	uint8_t x;
 	uint8_t y;
@@ -35,8 +36,8 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MINEFIELD_SIZE 10
-#define SQUARE_SIZE 240/MINEFIELD_SIZE
+#define mine_field_SIZE 10
+#define SQUARE_SIZE 240/mine_field_SIZE
 #define NO_OF_MINES 10
 /* USER CODE END PD */
 
@@ -46,19 +47,24 @@ typedef struct {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN PV */
 // 0: area clear, 1: mine
-uint8_t mine_field[MINEFIELD_SIZE][MINEFIELD_SIZE] = {{0}};
-uint8_t mine_numbers[MINEFIELD_SIZE][MINEFIELD_SIZE] = {{0}};
+uint8_t mine_field[mine_field_SIZE][mine_field_SIZE] = {{0}};
+uint8_t mine_numbers[mine_field_SIZE][mine_field_SIZE] = {{0}};
+// 1 : area checked and clear:
+uint8_t visited[mine_field_SIZE][mine_field_SIZE] = {{0}};
 Coordinates minesweeper_position;
+uint8_t fields_to_visit = mine_field_SIZE*mine_field_SIZE - NO_OF_MINES;
 // 0: game is running, 1: game lost, 2: game won
 uint8_t game_status = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-// void MX_USB_HOST_Process(void);
+static void MX_RTC_Init(void);
+void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
 void GameSetup(void);
@@ -71,6 +77,7 @@ int8_t ADC1_Init(void);
 uint32_t Get_Seed_Value(void);
 void Draw_Mine_Positions(void);
 void Game_Over(void);
+void Display_No_Of_Mines(uint16_t Xpos, uint16_t Ypos, uint8_t no_of_mines, Line_ModeTypdef Mode);
 void Count_Mines(void);
 void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color);
 /* USER CODE END PFP */
@@ -84,12 +91,11 @@ void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color);
   * @brief  The application entry point.
   * @retval int
   */
-
 int main(void)
 {
-  uint32_t seed = 0;
   /* USER CODE BEGIN 1 */
   JOYState_TypeDef JoyState = JOY_NONE;
+  // uint8_t KeyState;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -109,6 +115,7 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   /* Initialize the LEDs */
   // BSP_LED_Init(LED_GREEN);
@@ -117,7 +124,7 @@ int main(void)
   // BSP_LED_Init(LED_BLUE);
   
   /* Configure the Key push-button in GPIO Mode */
-  // BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
+  BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
 
   /*## Initialize the LCD #################################################*/
   if (BSP_LCD_Init() != LCD_OK)
@@ -127,6 +134,7 @@ int main(void)
 
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_Clear(LCD_COLOR_WHITE);
+  //joystick init
   if (BSP_JOY_Init(JOY_MODE_GPIO) != IO_OK)
   {
     BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
@@ -135,7 +143,7 @@ int main(void)
     BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Joystick cannot be initialized", CENTER_MODE);
     Error_Handler();
   }
-
+   //ADC-1 init
   if (ADC1_Init() != HAL_OK)
   {
     BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
@@ -144,10 +152,10 @@ int main(void)
     BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"ADC-1 cannot be initialized", CENTER_MODE);
     Error_Handler();
   }
-  seed = Get_Seed_Value();
+  // get the seed value to draw mines positions
+  uint32_t seed = Get_Seed_Value();
   srand(seed);
   /* USER CODE END 2 */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -183,10 +191,17 @@ int main(void)
 		    default:
 		      break;
 		    }
+//		    KeyState = BSP_PB_GetState();
+//		    if (KeyState ==0)
+//		    {
+//		    	visited[minesweeper_position.x][minesweeper_position.y] = 2;
+//		    	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_RED);
+//		    	HAL_Delay(200);
+//		    }
 	  }
 	  Game_Over();
     /* USER CODE END WHILE */
-    // MX_USB_HOST_Process();
+    //MX_USB_HOST_Process();
 
     /* USER CODE BEGIN 3 */
   }
@@ -244,8 +259,40 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  // HAL_RCC_MCOConfig(RCC_MCO, RCC_MCO1SOURCE_HSE, RCC_MCODIV_1);
-  // __HAL_RCC_PLLI2S_ENABLE();
+  HAL_RCC_MCOConfig(RCC_MCO, RCC_MCO1SOURCE_HSE, RCC_MCODIV_1);
+  /** Configure the Systick interrupt time
+  */
+  __HAL_RCC_PLLI2S_ENABLE();
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
+  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -329,92 +376,197 @@ void GameSetup(void)
 
 void Move_Up(void)
 {
-	// Create the square
-	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
-
+	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Create the square
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	}
+	else
+	{
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGREEN);
+		Display_No_Of_Mines(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, no_of_mines, CENTER_MODE);
+	}
 	// Change minesweeper's position
 	if (minesweeper_position.y != 0)
 		minesweeper_position.y--;
 	else
-		minesweeper_position.y = MINEFIELD_SIZE-1;
+		minesweeper_position.y = mine_field_SIZE-1;
 	// Mark minesweeper's new position
 	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Mark minesweeper's new position
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	}
 }
 
 void Move_Down(void)
 {
-	// Create the square
-	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Create the square
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	}
+	else
+	{
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGREEN);
+		Display_No_Of_Mines(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, no_of_mines, CENTER_MODE);
+	}
 
 	// Change minesweeper's position
-	if (minesweeper_position.y != MINEFIELD_SIZE-1)
+	if (minesweeper_position.y != mine_field_SIZE-1)
 		minesweeper_position.y++;
 	else
 		minesweeper_position.y = 0;
 	// Mark minesweeper's new position
 	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Mark minesweeper's new position
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	}
 }
 
 void Move_Left(void)
 {
-	// Create the square
-	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Create the square
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	}
+	else
+	{
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGREEN);
+		Display_No_Of_Mines(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, no_of_mines, CENTER_MODE);
+	}
 
 	// Change minesweeper's position
 	if (minesweeper_position.x != 0)
 		minesweeper_position.x--;
 	else
-		minesweeper_position.x = MINEFIELD_SIZE-1;
+		minesweeper_position.x = mine_field_SIZE-1;
 	// Mark minesweeper's new position
 	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Mark minesweeper's new position
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	}
 }
 
 void Move_Right(void)
 {
-	// Create the square
-	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
-
+	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Create the square
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_LIGHTGRAY);
+	}
+	else
+	{
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGREEN);
+		Display_No_Of_Mines(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, no_of_mines, CENTER_MODE);
+	}
 	// Change minesweeper's position
-	if (minesweeper_position.x != MINEFIELD_SIZE-1)
+	if (minesweeper_position.x != mine_field_SIZE-1)
 		minesweeper_position.x++;
 	else
 		minesweeper_position.x = 0;
-	// Mark minesweeper's new position
 	Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 0)
+	{
+		// Mark minesweeper's new position
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGRAY);
+	}
+}
+
+void Display_No_Of_Mines(uint16_t Xpos, uint16_t Ypos, uint8_t no_of_mines, Line_ModeTypdef Mode)
+{
+	//ref_col: where to start displaying on x-axis(in pixels)
+  uint16_t ref_col = Xpos = 0;
+	//ref_row: where to start displaying on y-axis
+  uint16_t ref_row = Ypos;
+  sFONT* current_font = BSP_LCD_GetFont();
+
+
+  ref_row += (SQUARE_SIZE - current_font->Height -2)/2;
+
+
+  switch (Mode)
+  {
+  case CENTER_MODE:
+    {
+    	ref_col += (SQUARE_SIZE - current_font->Width - 2)/2;
+    	break;
+    }
+  case RIGHT_MODE:
+    {
+    	ref_col += SQUARE_SIZE - current_font->Width - 2;
+    	break;
+    }
+  default:
+    {
+      break;
+    }
+  }
+
+  /* Send the string character by character on lCD */
+
+    /* Display number of mines in adjecent fields on LCD */
+    BSP_LCD_DisplayChar(ref_col, ref_row, no_of_mines+48);
+
 }
 
 void Uncover_Field(void)
 {
+	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
+
+	if (visited[minesweeper_position.x][minesweeper_position.y] == 1)
+	{
+		return;
+	}
+
 	if (mine_field[minesweeper_position.x][minesweeper_position.y] == 1)
 	{
 		game_status = 1;
 		return;
 	}
+
 	else
 	{
-		uint8_t mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
-		BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
-	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)mines, CENTER_MODE);
-
+		visited[minesweeper_position.x][minesweeper_position.y] = 1;
+		fields_to_visit--;
+		if (fields_to_visit == 0)
+		{
+			game_status = 2;
+		}
+		Draw_Square(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_DARKGREEN);
+		Display_No_Of_Mines(minesweeper_position.x*SQUARE_SIZE+1, minesweeper_position.y*SQUARE_SIZE+1, no_of_mines, CENTER_MODE);
 	}
 }
 
 
 void Game_Over(void)
 {
+
 	BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
 	// Game lost
 	if (game_status == 1)
 	{
 	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)"Game lost!", CENTER_MODE);
-	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Press \"Reset\" to play again.", CENTER_MODE);
 	}
 	// Game won
 	if (game_status == 2)
 	{
 	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)"Game won! :)", CENTER_MODE);
-	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Press \"Reset\" to play again.", CENTER_MODE);
 	}
+    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Press \"Reset\" to play again.", CENTER_MODE);
+
 	while(1);
 }
 
@@ -435,45 +587,127 @@ void Draw_Mine_Positions(void)
 	uint8_t i = 0;
 	while(i<NO_OF_MINES)
 	{
-		uint8_t x = (rand() % (MINEFIELD_SIZE));
-		uint8_t y = (rand() % (MINEFIELD_SIZE));
+		uint8_t x = (rand() % (mine_field_SIZE));
+		uint8_t y = (rand() % (mine_field_SIZE));
 		if (mine_field[x][y] == 0)
 		{
 			mine_field[x][y] = 1;
-			Draw_Square(x*SQUARE_SIZE+1, y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_RED);
+			//Draw_Square(x*SQUARE_SIZE+1, y*SQUARE_SIZE+1, SQUARE_SIZE-1, LCD_COLOR_RED);
 			i++;
 		}
 	}
 }
 
+
 void Count_Mines(void)
 {
-	for (uint8_t i = 0; i<MINEFIELD_SIZE; i+=1)
-	{
-		for (uint8_t j = 0; j<MINEFIELD_SIZE; i+=1)
-		{
-			uint8_t mines_in_neighbor = 0;
-			if (i > 0 && i<MINEFIELD_SIZE-1 && j > 0 && j<MINEFIELD_SIZE-1)
-			{
-				if (mine_field[i-1][j-1] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i][j-1] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i+1][j-1] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i-1][j] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i+1][j] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i-1][j+1] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i][j+1] == 1)
-					mines_in_neighbor += 1;
-				if (mine_field[i+1][j+1] == 1)
-					mines_in_neighbor += 1;
-				mine_numbers[i][j] = mines_in_neighbor;
-			}
+	uint8_t count = 0;
+	uint8_t x=0;
+	uint8_t y=0;
 
+	//case1 - top edge
+	x=0;
+	for(y=1; y<(mine_field_SIZE-1); y++)
+	{
+		if ((mine_field[x][y-1]) == 1) count++;
+		if ((mine_field[x+1][y-1]) == 1) count++;
+		if ((mine_field[x+1][y]) == 1) count++;
+		if ((mine_field[x+1][y+1]) == 1) count++;
+		if ((mine_field[x][y+1]) == 1) count++;
+		mine_numbers[x][y] = count;
+		count = 0;
+	}
+	//case 2 - bottom edge
+	x=(mine_field_SIZE-1);
+	for(y=1; y<(mine_field_SIZE-1); y++)
+	{
+		if ((mine_field[x][y-1]) == 1) count++;
+		if ((mine_field[x-1][y-1]) == 1) count++;
+		if ((mine_field[x-1][y]) == 1) count++;
+		if ((mine_field[x-1][y+1]) == 1) count++;
+		if ((mine_field[x][y+1]) == 1) count++;
+		mine_numbers[x][y] = count;
+		count = 0;
+	}
+
+	//case 3 - left edge
+	y=0;
+	for(x=1; x<(mine_field_SIZE-1); x++)
+	{
+		if ((mine_field[x-1][y]) == 1) count++;
+		if ((mine_field[x-1][y+1]) == 1) count++;
+		if ((mine_field[x][y+1]) == 1) count++;
+		if ((mine_field[x+1][y+1]) == 1) count++;
+		if ((mine_field[x+1][y]) == 1) count++;
+		mine_numbers[x][y] = count;
+		count = 0;
+	}
+
+	//case 4 - right edge
+	y=(mine_field_SIZE-1);
+	for(x=1; x<(mine_field_SIZE-1); x++)
+	{
+		if ((mine_field[x-1][y]) == 1) count++;
+		if ((mine_field[x-1][y-1]) == 1) count++;
+		if ((mine_field[x][y-1]) == 1) count++;
+		if ((mine_field[x+1][y-1]) == 1) count++;
+		if ((mine_field[x+1][y]) == 1) count++;
+		mine_numbers[x][y] = count;
+		count = 0;
+	}
+
+	//case 5 - left top corner
+	x=0;
+	y=0;
+	if ((mine_field[x][y+1]) == 1) count++;
+	if ((mine_field[x+1][y+1]) == 1) count++;
+	if ((mine_field[x+1][y]) == 1) count++;
+	mine_numbers[x][y] = count;
+	count = 0;
+
+	//case 6 - right top corner
+	x=0;
+	y=(mine_field_SIZE-1);
+	if ((mine_field[x][y-1]) == 1) count++;
+	if ((mine_field[x+1][y-1]) == 1) count++;
+	if ((mine_field[x+1][y]) == 1) count++;
+	mine_numbers[x][y] = count;
+	count = 0;
+
+	//case 7 - left bottom corner
+	x=(mine_field_SIZE-1);
+	y=0;
+	if ((mine_field[x-1][y]) == 1) count++;
+	if ((mine_field[x-1][y+1]) == 1) count++;
+	if ((mine_field[x][y+1]) == 1) count++;
+	mine_numbers[x][y] = count;
+	count = 0;
+
+	//case 8 - right bottom corner
+	x=(mine_field_SIZE-1);
+	y=(mine_field_SIZE-1);
+	if ((mine_field[x-1][y]) == 1) count++;
+	if ((mine_field[x-1][y-1]) == 1) count++;
+	if ((mine_field[x][y-1]) == 1) count++;
+	mine_numbers[x][y] = count;
+	count = 0;
+
+	//case 9 - without edge in neighbors
+	for(x=1; x<(mine_field_SIZE-1); x++)
+	{
+		for(uint8_t y=1; y<(mine_field_SIZE-1); y++)
+		{
+			if ((mine_field[x-1][y-1]) == 1) count++;
+			if ((mine_field[x][y-1]) == 1) count++;
+			if ((mine_field[x+1][y-1]) == 1) count++;
+			if ((mine_field[x-1][y]) == 1) count++;
+			//if ((mine_field[x][y]) == 1) count++;
+			if ((mine_field[x+1][y]) == 1) count++;
+			if ((mine_field[x-1][y+1]) == 1) count++;
+			if ((mine_field[x][y+1]) == 1) count++;
+			if ((mine_field[x+1][y+1]) == 1) count++;
+			mine_numbers[x][y] = count;
+			count = 0;
 		}
 	}
 }
