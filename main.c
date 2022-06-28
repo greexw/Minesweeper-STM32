@@ -36,9 +36,9 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define mine_field_SIZE 10
+#define mine_field_SIZE 3
 #define SQUARE_SIZE 240/mine_field_SIZE
-#define NO_OF_MINES 10
+#define NO_OF_MINES 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,17 +59,22 @@ Coordinates minesweeper_position;
 uint8_t fields_to_visit = mine_field_SIZE*mine_field_SIZE - NO_OF_MINES;
 // 0: game is running, 1: game lost, 2: game won
 uint8_t game_status = 0;
+uint8_t second_passed = 0;
+
+uint8_t seconds = 0, minutes = 0, hours = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_RTC_Init(void);
-void MX_USB_HOST_Process(void);
+//void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
 void GameSetup(void);
+void Update_Time(void);
 void Move_Up(void);
 void Move_Down(void);
+uint16_t Calculate_Score(void);
 void Move_Left(void);
 void Move_Right(void);
 void Uncover_Field(void);
@@ -163,6 +168,11 @@ int main(void)
 	  GameSetup();
 	  while (game_status == 0)
 	  {
+		    if (second_passed == 1)
+		    {
+		    	Update_Time();
+		    	second_passed = 0;
+		    }
 
 		    JoyState = BSP_JOY_GetState();
 
@@ -374,6 +384,31 @@ void GameSetup(void)
 	Count_Mines();
 }
 
+void Update_Time(void)
+{
+	uint8_t Game_Time[6] = "00:00";
+	seconds++;
+	if (seconds > 59)
+	{
+		seconds = 0;
+		minutes ++;
+		if (minutes > 59)
+		{
+			minutes = 0;
+			hours ++;
+			if (hours > 23)
+			{
+				hours = 0;
+			}
+		}
+	}
+	Game_Time[4] = seconds%10 +48;
+	Game_Time[3] = seconds/10 +48;
+	Game_Time[1] = minutes%10 +48;
+	Game_Time[0] = minutes/10 +48;
+	BSP_LCD_DisplayStringAt(260, 120, (uint8_t *) Game_Time, LEFT_MODE);
+}
+
 void Move_Up(void)
 {
 	uint8_t no_of_mines = mine_numbers[minesweeper_position.x][minesweeper_position.y];
@@ -488,7 +523,7 @@ void Move_Right(void)
 void Display_No_Of_Mines(uint16_t Xpos, uint16_t Ypos, uint8_t no_of_mines, Line_ModeTypdef Mode)
 {
 	//ref_col: where to start displaying on x-axis(in pixels)
-  uint16_t ref_col = Xpos = 0;
+  uint16_t ref_col = Xpos;
 	//ref_row: where to start displaying on y-axis
   uint16_t ref_row = Ypos;
   sFONT* current_font = BSP_LCD_GetFont();
@@ -553,7 +588,9 @@ void Uncover_Field(void)
 
 void Game_Over(void)
 {
-
+	uint16_t score = 0;
+	uint8_t Result[] = "You score 000 pts.";
+	uint8_t i = 0;
 	BSP_LCD_Clear(LCD_COLOR_LIGHTGRAY);
 	// Game lost
 	if (game_status == 1)
@@ -563,11 +600,31 @@ void Game_Over(void)
 	// Game won
 	if (game_status == 2)
 	{
-	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)"Game won! :)", CENTER_MODE);
+		score = Calculate_Score();
+		while(score != 0)
+		{
+			Result[12-i] = score%10+48;
+			score = score/10;
+			i++;
+		}
+	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Game won! :)", CENTER_MODE);
+	    BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 95, (uint8_t *)Result, CENTER_MODE);
+
 	}
     BSP_LCD_DisplayStringAt(0, BSP_LCD_GetYSize()- 80, (uint8_t *)"Press \"Reset\" to play again.", CENTER_MODE);
 
 	while(1);
+}
+
+uint16_t Calculate_Score()
+{
+	uint16_t score = 0, no_of_seconds = hours*3600 + minutes*60 + seconds;
+
+	if (no_of_seconds <= 600)
+	{
+		score = 600 - no_of_seconds;
+	}
+	return score;
 }
 
 void Draw_Square(uint16_t Xpos, uint16_t Ypos, uint16_t Height, uint16_t color)
